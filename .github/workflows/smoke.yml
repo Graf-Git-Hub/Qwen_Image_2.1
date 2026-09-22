@@ -46,6 +46,31 @@ jobs:
             throw 'FastAPI missing from installed app payload'
           }
 
+      - name: Validate queue media wiring
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $target = Join-Path $env:RUNNER_TEMP 'qwen-installer-smoke'
+          $app = Join-Path $target 'qwen_app.py'
+          $patterns = @(
+            'function makeQueueVideo',
+            'function makeQueueStill',
+            'queueVideoUrl',
+            '@app.get("/loading-video")',
+            '@app.get("/queue-still")',
+            '@app.get("/api/queue-media-health")'
+          )
+          foreach ($pattern in $patterns) {
+            if (-not (Select-String -Path $app -SimpleMatch -Pattern $pattern -Quiet)) {
+              throw "Missing queue-media wiring: $pattern"
+            }
+          }
+
+          $video = Join-Path $target 'loading_matrix.mp4'
+          $still = Join-Path $target 'queue_wait.webp'
+          if ((Get-Item $video).Length -lt 5000) { throw 'loading_matrix.mp4 suspiciously small' }
+          if ((Get-Item $still).Length -lt 5000) { throw 'queue_wait.webp suspiciously small' }
+
       - name: Validate launcher root handling
         shell: powershell
         run: |
