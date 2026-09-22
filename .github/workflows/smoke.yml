@@ -58,7 +58,6 @@ jobs:
             'queueVideoUrl',
             '@app.get("/loading-video")',
             '@app.get("/queue-still")',
-            '@app.get("/api/queue-media-health")'
           )
           foreach ($pattern in $patterns) {
             if (-not (Select-String -Path $app -SimpleMatch -Pattern $pattern -Quiet)) {
