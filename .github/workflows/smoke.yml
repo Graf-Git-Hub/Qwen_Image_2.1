@@ -57,7 +57,7 @@ jobs:
             'function makeQueueStill',
             'queueVideoUrl',
             '@app.get("/loading-video")',
-            '@app.get("/queue-still")',
+            '@app.get("/queue-still")'
           )
           foreach ($pattern in $patterns) {
             if (-not (Select-String -Path $app -SimpleMatch -Pattern $pattern -Quiet)) {
