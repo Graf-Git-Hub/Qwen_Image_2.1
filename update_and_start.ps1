@@ -1,13 +1,37 @@
 param(
     [string]$Root = $PSScriptRoot,
-    [switch]$SkipUpdate
+    [switch]$SkipUpdate,
+    [switch]$ValidateRootOnly
 )
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 $RepoRaw = 'https://raw.githubusercontent.com/Graf-Git-Hub/Qwen_Image_2.1/main'
-$Root = [IO.Path]::GetFullPath($Root)
+
+function Normalize-Root([string]$Value) {
+    if ([string]::IsNullOrWhiteSpace($Value)) { $Value = $PSScriptRoot }
+
+    # Defensive cleanup for arguments arriving from CMD. In particular,
+    # old launchers could pass a trailing backslash directly before the
+    # closing quote, leaving a literal quote in the received path.
+    $Value = $Value.Trim()
+    $Value = $Value.Trim('"')
+    while ($Value.EndsWith('\') -or $Value.EndsWith('/')) {
+        $Value = $Value.Substring(0, $Value.Length - 1)
+    }
+    $Value = $Value.Trim('"')
+
+    if ([string]::IsNullOrWhiteSpace($Value)) { $Value = $PSScriptRoot }
+    return [IO.Path]::GetFullPath($Value)
+}
+
+$Root = Normalize-Root $Root
+
+if ($ValidateRootOnly) {
+    Write-Host "ROOT_OK=$Root"
+    exit 0
+}
 
 function Start-Qwen {
     $python = Join-Path $Root 'venv\Scripts\python.exe'
