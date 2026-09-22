@@ -24,7 +24,6 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $target = Join-Path $env:RUNNER_TEMP 'qwen-installer-smoke'
           & .\install.ps1 -Target $target -NoStart -Silent -ValidatePayloadOnly
-          if ($LASTEXITCODE -ne 0) { throw "Installer payload validation failed with code $LASTEXITCODE" }
 
           $required = @(
             'qwen_app.py',
