@@ -1,0 +1,46 @@
+name: installer-smoke
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate PowerShell syntax
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          [void][scriptblock]::Create((Get-Content .\install.ps1 -Raw))
+          [void][scriptblock]::Create((Get-Content .\update_and_start.ps1 -Raw))
+      - name: Validate application payload
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $in = [IO.File]::OpenRead('.\qwen_app.py.gz')
+          try {
+            $gz = New-Object IO.Compression.GzipStream($in,[IO.Compression.CompressionMode]::Decompress)
+            try {
+              $out = [IO.File]::Create('.\qwen_app.py')
+              try { $gz.CopyTo($out) } finally { $out.Dispose() }
+            } finally { $gz.Dispose() }
+          } finally { $in.Dispose() }
+          python -m py_compile .\qwen_app.py
+          if (-not (Select-String -Path .\qwen_app.py -Pattern 'QwenImage21Pipeline' -Quiet)) { throw 'QwenImage21Pipeline missing' }
+      - name: Validate required repository files
+        shell: powershell
+        run: |
+          $required = @(
+            'INSTALL_QWEN_IMAGE_2_1.cmd',
+            'install.ps1',
+            'START_QWEN_IMAGE_2_1.cmd',
+            'update_and_start.ps1',
+            'VERSION.txt',
+            'qwen_app.py.gz',
+            'loading_matrix.mp4',
+            'queue_wait.webp'
+          )
+          foreach ($f in $required) { if (-not (Test-Path $f)) { throw "Missing: $f" } }
