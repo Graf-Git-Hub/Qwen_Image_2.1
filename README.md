@@ -1,5 +1,15 @@
 # Qwen Image 2.1 Standalone for Windows
 
+## Empfohlen: Ein-Klick Setup / Update
+
+Für eine bestehende oder neue Installation nimm am besten nur diese Datei:
+
+**[`QWEN_IMAGE_2_1_EIN_KLICK_SETUP_UPDATE.cmd`](./QWEN_IMAGE_2_1_EIN_KLICK_SETUP_UPDATE.cmd)**
+
+Sie prüft automatisch die vorhandene Installation, vergleicht die lokale Version mit GitHub, ergänzt fehlende Dateien, aktualisiert bei Bedarf und erstellt anschließend die Desktop-Verknüpfung **Qwen Image 2.1** mit Symbol.
+
+Die Desktop-Verknüpfung startet später immer über `START_QWEN_IMAGE_2_1.cmd`. Diese prüft vor jedem Start `VERSION.txt` auf GitHub. Gibt es ein Update, wird zuerst aktualisiert und danach gestartet. Gibt es kein Update, startet Qwen direkt.
+
 Eine eigenständige Windows-Oberfläche für **Qwen Image 2.1**, ohne ComfyUI. Sie ist auf Rechner mit NVIDIA-GPU und begrenztem VRAM ausgelegt und enthält Bildgenerierung, Bildbearbeitung mit mehreren Referenzbildern, Warteschlange, Galerie, Fortschrittsanzeige und eine optionale lokale Ollama-Prompt-KI.
 
 ## Schnellinstallation
