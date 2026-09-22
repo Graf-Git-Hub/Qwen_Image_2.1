@@ -9,7 +9,7 @@ $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 $RepoRaw = 'https://raw.githubusercontent.com/Graf-Git-Hub/Qwen_Image_2.1/main'
-$Version = '8.2.0'
+$Version = '8.2.1'
 
 function Write-Step([string]$Text) {
     if (-not $Silent) { Write-Host $Text }
@@ -25,21 +25,47 @@ function Get-DefaultTarget {
 }
 
 function Download-File([string]$Relative, [string]$Destination, [int64]$MinBytes = 1) {
-    $url = "$RepoRaw/$Relative?ts=$([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())"
     $parent = Split-Path -Parent $Destination
     if ($parent) { New-Item -ItemType Directory -Force -Path $parent | Out-Null }
+
     $last = $null
+
+    # 1) Fast path: raw.githubusercontent.com
     for ($i = 1; $i -le 3; $i++) {
         try {
+            $url = "$RepoRaw/$Relative?ts=$([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())"
             Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $Destination -TimeoutSec 180
             if (-not (Test-Path $Destination)) { throw "Download wurde nicht gespeichert: $Relative" }
             if ((Get-Item $Destination).Length -lt $MinBytes) { throw "Download ist unvollstaendig: $Relative" }
             return
         } catch {
             $last = $_
+            Remove-Item -Force $Destination -ErrorAction SilentlyContinue
             Start-Sleep -Seconds 2
         }
     }
+
+    # 2) Robust fallback: GitHub Contents API. This avoids temporary raw/CDN 404s.
+    try {
+        $escapedPath = ($Relative -split '/' | ForEach-Object { [Uri]::EscapeDataString($_) }) -join '/'
+        $apiUrl = "https://api.github.com/repos/Graf-Git-Hub/Qwen_Image_2.1/contents/$escapedPath?ref=main"
+        $headers = @{
+            'User-Agent' = 'Qwen-Image-2.1-Installer'
+            'Accept' = 'application/vnd.github+json'
+        }
+        $obj = Invoke-RestMethod -Uri $apiUrl -Headers $headers -TimeoutSec 60
+        if (-not $obj.content -or $obj.encoding -ne 'base64') {
+            throw "GitHub API lieferte keinen Base64-Dateiinhalt fuer: $Relative"
+        }
+        $bytes = [Convert]::FromBase64String(($obj.content -replace '\s',''))
+        [IO.File]::WriteAllBytes($Destination, $bytes)
+        if ((Get-Item $Destination).Length -lt $MinBytes) { throw "GitHub-API-Download ist unvollstaendig: $Relative" }
+        return
+    } catch {
+        $last = $_
+        Remove-Item -Force $Destination -ErrorAction SilentlyContinue
+    }
+
     throw "Download fehlgeschlagen: $Relative`n$last"
 }
 
