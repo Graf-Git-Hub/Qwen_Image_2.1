@@ -10,36 +10,44 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Validate PowerShell syntax
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
           [void][scriptblock]::Create((Get-Content .\install.ps1 -Raw))
           [void][scriptblock]::Create((Get-Content .\update_and_start.ps1 -Raw))
-      - name: Validate application payload
+
+      - name: Validate exact embedded installer payload
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $chunkNames = @(
-            '.\payload\qwen_app.py.gz.b64.001',
-            '.\payload\qwen_app.py.gz.b64.002',
-            '.\payload\qwen_app.py.gz.b64.003',
-            '.\payload\qwen_app.py.gz.b64.004'
+          $target = Join-Path $env:RUNNER_TEMP 'qwen-installer-smoke'
+          & .\install.ps1 -Target $target -NoStart -Silent -ValidatePayloadOnly
+          if ($LASTEXITCODE -ne 0) { throw "Installer payload validation failed with code $LASTEXITCODE" }
+
+          $required = @(
+            'qwen_app.py',
+            'START_QWEN_IMAGE_2_1.cmd',
+            'update_and_start.ps1',
+            'loading_matrix.mp4',
+            'queue_wait.webp'
           )
-          $b64 = ''
-          foreach ($chunk in $chunkNames) { $b64 += (Get-Content $chunk -Raw).Trim() }
-          [IO.File]::WriteAllBytes('.\qwen_app.py.gz', [Convert]::FromBase64String($b64))
-          $in = [IO.File]::OpenRead('.\qwen_app.py.gz')
-          try {
-            $gz = New-Object IO.Compression.GzipStream($in,[IO.Compression.CompressionMode]::Decompress)
-            try {
-              $out = [IO.File]::Create('.\qwen_app.py')
-              try { $gz.CopyTo($out) } finally { $out.Dispose() }
-            } finally { $gz.Dispose() }
-          } finally { $in.Dispose() }
-          python -m py_compile .\qwen_app.py
-          if (-not (Select-String -Path .\qwen_app.py -Pattern 'QwenImage21Pipeline' -Quiet)) { throw 'QwenImage21Pipeline missing' }
-      - name: Validate required repository files
+          foreach ($f in $required) {
+            $p = Join-Path $target $f
+            if (-not (Test-Path $p)) { throw "Installer did not create: $f" }
+            if ((Get-Item $p).Length -lt 100) { throw "Installer created suspiciously small file: $f" }
+          }
+
+          python -m py_compile (Join-Path $target 'qwen_app.py')
+          if (-not (Select-String -Path (Join-Path $target 'qwen_app.py') -Pattern 'QwenImage21Pipeline' -Quiet)) {
+            throw 'QwenImage21Pipeline missing from installed app payload'
+          }
+          if (-not (Select-String -Path (Join-Path $target 'qwen_app.py') -Pattern 'FastAPI' -Quiet)) {
+            throw 'FastAPI missing from installed app payload'
+          }
+
+      - name: Validate repository entry files
         shell: powershell
         run: |
           $required = @(
@@ -47,40 +55,8 @@ jobs:
             'install.ps1',
             'START_QWEN_IMAGE_2_1.cmd',
             'update_and_start.ps1',
-            'VERSION.txt',
-            'payload\qwen_app.py.gz.b64.001',
-            'payload\qwen_app.py.gz.b64.002',
-            'payload\qwen_app.py.gz.b64.003',
-            'payload\qwen_app.py.gz.b64.004',
-            'loading_matrix.mp4',
-            'queue_wait.webp'
+            'VERSION.txt'
           )
-          foreach ($f in $required) { if (-not (Test-Path $f)) { throw "Missing: $f" } }
-
-      - name: Validate public GitHub download paths
-        shell: powershell
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $headers = @{
-            'User-Agent' = 'Qwen-Image-2.1-CI'
-            'Accept' = 'application/vnd.github+json'
+          foreach ($f in $required) {
+            if (-not (Test-Path $f)) { throw "Missing: $f" }
           }
-          $requiredRemote = @(
-            'install.ps1',
-            'START_QWEN_IMAGE_2_1.cmd',
-            'update_and_start.ps1',
-            'VERSION.txt',
-            'payload/qwen_app.py.gz.b64.001',
-            'payload/qwen_app.py.gz.b64.002',
-            'payload/qwen_app.py.gz.b64.003',
-            'payload/qwen_app.py.gz.b64.004',
-            'loading_matrix.mp4',
-            'queue_wait.webp'
-          )
-          foreach ($path in $requiredRemote) {
-            $escaped = ($path -split '/' | ForEach-Object { [Uri]::EscapeDataString($_) }) -join '/'
-            $url = "https://api.github.com/repos/Graf-Git-Hub/Qwen_Image_2.1/contents/$escaped?ref=main"
-            $obj = Invoke-RestMethod -Uri $url -Headers $headers -TimeoutSec 60
-            if (-not $obj.content -or $obj.encoding -ne 'base64') { throw "Public download path invalid: $path" }
-          }
-
