@@ -57,7 +57,9 @@ if "%SILENT%"=="0" (
 )
 
 echo [1/8] Aktuelle Programmdateien von GitHub laden ...
-call :download "qwen_app.py" "%ROOT%\qwen_app.py" || goto :fail
+call :download "qwen_app.py.gz" "%TMP%\qwen_app.py.gz" || goto :fail
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$in=[IO.File]::OpenRead('%TMP%\qwen_app.py.gz');$gz=New-Object IO.Compression.GzipStream($in,[IO.Compression.CompressionMode]::Decompress);$out=[IO.File]::Create('%ROOT%\qwen_app.py');$gz.CopyTo($out);$out.Dispose();$gz.Dispose();$in.Dispose()" >> "%LOG%" 2>&1
+if errorlevel 1 goto :fail
 call :download "START_QWEN_IMAGE_2_1.cmd" "%ROOT%\START_QWEN_IMAGE_2_1.cmd" || goto :fail
 call :download "loading_matrix.mp4" "%ROOT%\loading_matrix.mp4" || goto :fail
 call :download "queue_wait.webp" "%ROOT%\queue_wait.webp" || goto :fail
