@@ -56,3 +56,31 @@ jobs:
             'queue_wait.webp'
           )
           foreach ($f in $required) { if (-not (Test-Path $f)) { throw "Missing: $f" } }
+
+      - name: Validate public GitHub download paths
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $headers = @{
+            'User-Agent' = 'Qwen-Image-2.1-CI'
+            'Accept' = 'application/vnd.github+json'
+          }
+          $requiredRemote = @(
+            'install.ps1',
+            'START_QWEN_IMAGE_2_1.cmd',
+            'update_and_start.ps1',
+            'VERSION.txt',
+            'payload/qwen_app.py.gz.b64.001',
+            'payload/qwen_app.py.gz.b64.002',
+            'payload/qwen_app.py.gz.b64.003',
+            'payload/qwen_app.py.gz.b64.004',
+            'loading_matrix.mp4',
+            'queue_wait.webp'
+          )
+          foreach ($path in $requiredRemote) {
+            $escaped = ($path -split '/' | ForEach-Object { [Uri]::EscapeDataString($_) }) -join '/'
+            $url = "https://api.github.com/repos/Graf-Git-Hub/Qwen_Image_2.1/contents/$escaped?ref=main"
+            $obj = Invoke-RestMethod -Uri $url -Headers $headers -TimeoutSec 60
+            if (-not $obj.content -or $obj.encoding -ne 'base64') { throw "Public download path invalid: $path" }
+          }
+
