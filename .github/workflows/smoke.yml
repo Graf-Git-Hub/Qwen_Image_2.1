@@ -46,6 +46,19 @@ jobs:
             throw 'FastAPI missing from installed app payload'
           }
 
+      - name: Validate launcher root handling
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $testRoot = Join-Path $env:RUNNER_TEMP 'Qwen Root Test'
+          $withSlash = $testRoot + '\\'
+          & .\update_and_start.ps1 -Root $withSlash -ValidateRootOnly
+          if ($LASTEXITCODE -ne 0) { throw 'Root normalization failed' }
+
+          $starter = Get-Content .\START_QWEN_IMAGE_2_1.cmd -Raw
+          if ($starter -notmatch '%~dp0\.') { throw 'Starter does not normalize %~dp0' }
+          if ($starter -match 'set "ROOT=%~dp0"') { throw 'Old broken ROOT assignment still present' }
+
       - name: Validate repository entry files
         shell: powershell
         run: |
