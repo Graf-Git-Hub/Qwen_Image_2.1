@@ -84,7 +84,10 @@ try {
 
     Write-Step '[1/8] Lade aktuelle Programmdateien von GitHub ...'
     $downloads = @(
-        @{ Rel='qwen_app.py.gz';           Name='qwen_app.py.gz';           Min=10000 },
+        @{ Rel='payload/qwen_app.py.gz.b64.001'; Name='qwen_app.py.gz.b64.001'; Min=5000 },
+        @{ Rel='payload/qwen_app.py.gz.b64.002'; Name='qwen_app.py.gz.b64.002'; Min=5000 },
+        @{ Rel='payload/qwen_app.py.gz.b64.003'; Name='qwen_app.py.gz.b64.003'; Min=5000 },
+        @{ Rel='payload/qwen_app.py.gz.b64.004'; Name='qwen_app.py.gz.b64.004'; Min=5000 },
         @{ Rel='START_QWEN_IMAGE_2_1.cmd'; Name='START_QWEN_IMAGE_2_1.cmd'; Min=100 },
         @{ Rel='update_and_start.ps1';      Name='update_and_start.ps1';      Min=500 },
         @{ Rel='loading_matrix.mp4';        Name='loading_matrix.mp4';        Min=5000 },
@@ -96,9 +99,26 @@ try {
         Download-File $item.Rel (Join-Path $Temp $item.Name) $item.Min
     }
 
-    # Decompress and validate application payload before touching the installed app.
+    # Reconstruct the compressed application payload from small text chunks.
+    # This avoids fragile binary transfers through the public installer path.
     $gzPath = Join-Path $Temp 'qwen_app.py.gz'
     $appTemp = Join-Path $Temp 'qwen_app.py'
+    $chunkNames = @(
+        'qwen_app.py.gz.b64.001',
+        'qwen_app.py.gz.b64.002',
+        'qwen_app.py.gz.b64.003',
+        'qwen_app.py.gz.b64.004'
+    )
+    $b64 = ''
+    foreach ($chunkName in $chunkNames) {
+        $b64 += (Get-Content (Join-Path $Temp $chunkName) -Raw).Trim()
+    }
+    try {
+        [IO.File]::WriteAllBytes($gzPath, [Convert]::FromBase64String($b64))
+    } catch {
+        throw 'Qwen-App-Payload konnte nicht rekonstruiert werden.'
+    }
+
     $inStream = [IO.File]::OpenRead($gzPath)
     try {
         $gzip = New-Object IO.Compression.GzipStream($inStream, [IO.Compression.CompressionMode]::Decompress)
@@ -116,7 +136,7 @@ try {
     # Copy program assets only after all downloads have passed validation.
     Copy-Item -Force $appTemp (Join-Path $Target 'qwen_app.py')
     foreach ($item in $downloads) {
-        if ($item.Name -in @('VERSION.txt','qwen_app.py.gz')) { continue }
+        if ($item.Name -eq 'VERSION.txt' -or $item.Name -like 'qwen_app.py.gz.b64.*') { continue }
         Copy-Item -Force (Join-Path $Temp $item.Name) (Join-Path $Target $item.Name)
     }
 
