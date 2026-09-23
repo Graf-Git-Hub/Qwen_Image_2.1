@@ -10,7 +10,7 @@ $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 $RepoRaw = 'https://raw.githubusercontent.com/Graf-Git-Hub/Qwen_Image_2.1/main'
-$Version = '8.3.3'
+$Version = '8.3.4'
 
 function Write-Step([string]$Text) {
     if (-not $Silent) { Write-Host $Text }
@@ -134,13 +134,15 @@ try {
     $appText = [IO.File]::ReadAllText($appTemp, [Text.Encoding]::UTF8)
 
     # Queue-Medien V8.3.2: direkt laden, damit aktives Video und wartendes Standbild sicher sichtbar sind.
-    $appText = $appText.Replace('APP_VERSION = "8.2.0"', 'APP_VERSION = "8.3.3"')
+    $appText = $appText.Replace('APP_VERSION = "8.2.0"', 'APP_VERSION = "8.3.4"')
+    $appText = $appText.Replace('V8.2.0 · CLEAN · PORT 7862', 'V8.3.4 · CLEAN · PORT 7862')
+    $appText = $appText.Replace('V8.2.0', 'V8.3.4')
 
     $oldQueueDecl = @'
 let queue=[], queueRunning=false, queueCounter=1, loadingVideoBlobUrl=null, queueStillBlobUrl=null;
 '@
     $newQueueDecl = @'
-let queue=[], queueRunning=false, queueCounter=1; const QUEUE_MEDIA_VERSION='8.3.3';
+let queue=[], queueRunning=false, queueCounter=1; const QUEUE_MEDIA_VERSION='8.3.4';
 '@
     $appText = $appText.Replace($oldQueueDecl.Trim(), $newQueueDecl.Trim())
 
@@ -200,8 +202,11 @@ async def _autoload_model_on_startup():
         $appText -notmatch 'queueVideoUrl') {
         throw 'Queue-Medien-Patch konnte nicht angewendet werden.'
     }
-    if ($appText -notmatch 'APP_VERSION = "8.3.3"') {
-        throw 'App-Version wurde nicht auf 8.3.3 aktualisiert.'
+    if ($appText -notmatch 'APP_VERSION = "8.3.4"') {
+        throw 'App-Version wurde nicht auf 8.3.4 aktualisiert.'
+    }
+    if ($appText -notmatch 'V8.3.4') {
+        throw 'Sichtbare UI-Version wurde nicht auf V8.3.4 aktualisiert.'
     }
     if ($appText -notmatch '_autoload_model_on_startup') {
         throw 'Modell-Autoload fehlt in qwen_app.py.'
