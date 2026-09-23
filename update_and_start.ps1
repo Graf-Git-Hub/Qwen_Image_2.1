@@ -60,7 +60,7 @@ try {
                 try {
                     $appCheck = [IO.File]::ReadAllText($appFile, [Text.Encoding]::UTF8)
                     if ($appCheck -notmatch ('APP_VERSION = "' + [regex]::Escape($remoteVersion) + '"')) { $needsRepair = $true }
-                    if ($appCheck.Contains('Ã') -or $appCheck.Contains('Â')) { $needsRepair = $true }
+                    if ($appCheck.Contains([char]0x00C3) -or $appCheck.Contains([char]0x00C2)) { $needsRepair = $true }
                     if ($appCheck -notmatch '_autoload_model_on_startup') { $needsRepair = $true }
                     if ($appCheck -notmatch 'function makeQueueVideo' -or $appCheck -notmatch 'function makeQueueStill') { $needsRepair = $true }
                 } catch {
