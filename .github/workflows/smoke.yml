@@ -46,6 +46,23 @@ jobs:
             throw 'FastAPI missing from installed app payload'
           }
 
+      - name: Validate UTF-8 and autoload
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $target = Join-Path $env:RUNNER_TEMP 'qwen-installer-smoke'
+          $app = Join-Path $target 'qwen_app.py'
+          $txt = [IO.File]::ReadAllText($app, [Text.Encoding]::UTF8)
+
+          if ($txt -notmatch 'APP_VERSION = "8.3.3"') { throw 'Installed app version is not 8.3.3' }
+          if ($txt -notmatch '_autoload_model_on_startup') { throw 'Model autoload hook missing' }
+          if ($txt.Contains('Ã') -or $txt.Contains('Â')) { throw 'Mojibake detected in installed app' }
+
+          $requiredGerman = @('Auflösung','Stückzahl','Maße','zurücksetzen')
+          foreach ($word in $requiredGerman) {
+            if (-not $txt.Contains($word)) { throw "UTF-8 text missing: $word" }
+          }
+
       - name: Validate queue media wiring
         shell: powershell
         run: |
