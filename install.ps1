@@ -10,7 +10,7 @@ $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 $RepoRaw = 'https://raw.githubusercontent.com/Graf-Git-Hub/Qwen_Image_2.1/main'
-$Version = '8.3.2'
+$Version = '8.3.3'
 
 function Write-Step([string]$Text) {
     if (-not $Silent) { Write-Host $Text }
@@ -131,16 +131,16 @@ try {
         } finally { $gzip.Dispose() }
     } finally { $inStream.Dispose() }
 
-    $appText = Get-Content $appTemp -Raw
+    $appText = [IO.File]::ReadAllText($appTemp, [Text.Encoding]::UTF8)
 
     # Queue-Medien V8.3.2: direkt laden, damit aktives Video und wartendes Standbild sicher sichtbar sind.
-    $appText = $appText.Replace('APP_VERSION = "8.2.0"', 'APP_VERSION = "8.3.2"')
+    $appText = $appText.Replace('APP_VERSION = "8.2.0"', 'APP_VERSION = "8.3.3"')
 
     $oldQueueDecl = @'
 let queue=[], queueRunning=false, queueCounter=1, loadingVideoBlobUrl=null, queueStillBlobUrl=null;
 '@
     $newQueueDecl = @'
-let queue=[], queueRunning=false, queueCounter=1; const QUEUE_MEDIA_VERSION='8.3.2';
+let queue=[], queueRunning=false, queueCounter=1; const QUEUE_MEDIA_VERSION='8.3.3';
 '@
     $appText = $appText.Replace($oldQueueDecl.Trim(), $newQueueDecl.Trim())
 
@@ -172,10 +172,42 @@ async function processQueue(){if(queueRunning||!queue.length)return;queueRunning
 '@
     $appText = $appText.Replace($oldProcess.Trim(), $newProcess.Trim())
 
+
+    # Qwen-Modell direkt beim Serverstart im Hintergrund laden.
+    # So kann der Benutzer sofort den Prompt schreiben, waehrend das Modell bereits laedt.
+    if ($appText -notmatch '_autoload_model_on_startup') {
+        $autoloadBlock = @'
+@app.on_event("startup")
+async def _autoload_model_on_startup():
+    import threading as _autoload_threading
+    def _autoload_runner():
+        try:
+            load_model()
+        except Exception as exc:
+            print(f"[AUTOLOAD] Modell konnte nicht automatisch geladen werden: {exc}", flush=True)
+    _autoload_threading.Thread(target=_autoload_runner, daemon=True, name="qwen-model-autoload").start()
+
+'@
+        $mainMarker = 'if __name__ == "__main__":'
+        if (-not $appText.Contains($mainMarker)) {
+            throw 'Autoload-Marker __main__ wurde in qwen_app.py nicht gefunden.'
+        }
+        $appText = $appText.Replace($mainMarker, $autoloadBlock + $mainMarker)
+    }
+
     if ($appText -notmatch 'function makeQueueVideo' -or
         $appText -notmatch 'function makeQueueStill' -or
         $appText -notmatch 'queueVideoUrl') {
         throw 'Queue-Medien-Patch konnte nicht angewendet werden.'
+    }
+    if ($appText -notmatch 'APP_VERSION = "8.3.3"') {
+        throw 'App-Version wurde nicht auf 8.3.3 aktualisiert.'
+    }
+    if ($appText -notmatch '_autoload_model_on_startup') {
+        throw 'Modell-Autoload fehlt in qwen_app.py.'
+    }
+    if ($appText.Contains('Ã') -or $appText.Contains('Â')) {
+        throw 'UTF-8-Pruefung fehlgeschlagen: Mojibake in qwen_app.py erkannt.'
     }
     [IO.File]::WriteAllText($appTemp, $appText, (New-Object Text.UTF8Encoding($false)))
 
