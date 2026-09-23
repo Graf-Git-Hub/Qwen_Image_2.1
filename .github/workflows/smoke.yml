@@ -52,16 +52,22 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $target = Join-Path $env:RUNNER_TEMP 'qwen-installer-smoke'
           $app = Join-Path $target 'qwen_app.py'
-          $txt = [IO.File]::ReadAllText($app, [Text.Encoding]::UTF8)
-
-          if ($txt -notmatch 'APP_VERSION = "8.3.3"') { throw 'Installed app version is not 8.3.3' }
-          if ($txt -notmatch '_autoload_model_on_startup') { throw 'Model autoload hook missing' }
-          if ($txt.Contains('Ã') -or $txt.Contains('Â')) { throw 'Mojibake detected in installed app' }
-
-          $requiredGerman = @('Auflösung','Stückzahl','Maße','zurücksetzen')
-          foreach ($word in $requiredGerman) {
-            if (-not $txt.Contains($word)) { throw "UTF-8 text missing: $word" }
-          }
+          $py = @'
+from pathlib import Path
+import sys
+p = Path(sys.argv[1])
+t = p.read_text(encoding="utf-8")
+assert 'APP_VERSION = "8.3.3"' in t, "Installed app version is not 8.3.3"
+assert "_autoload_model_on_startup" in t, "Model autoload hook missing"
+assert "\u00c3" not in t and "\u00c2" not in t, "Mojibake detected in installed app"
+for word in ("Aufl\u00f6sung", "St\u00fcckzahl", "Ma\u00dfe", "zur\u00fccksetzen"):
+    assert word in t, "UTF-8 text missing: " + word
+print("UTF8_AUTOLOAD_OK")
+'@
+          $pyFile = Join-Path $env:RUNNER_TEMP 'validate_qwen_utf8.py'
+          [IO.File]::WriteAllText($pyFile, $py, [Text.Encoding]::ASCII)
+          python $pyFile $app
+          if ($LASTEXITCODE -ne 0) { throw 'UTF-8/autoload validation failed' }
 
       - name: Validate queue media wiring
         shell: powershell
