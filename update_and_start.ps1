@@ -42,7 +42,35 @@ function Start-Qwen {
     Start-Process -FilePath $python -ArgumentList @($app) -WorkingDirectory $Root
 }
 
+
+function Repair-LocalSettings {
+    $utf8NoBom = New-Object Text.UTF8Encoding($false)
+
+    $ollamaFile = Join-Path $Root 'OLLAMA_URL.txt'
+    $ollamaUrl = 'http://127.0.0.1:11434'
+    if (Test-Path $ollamaFile) {
+        try {
+            $candidate = [IO.File]::ReadAllText($ollamaFile, [Text.Encoding]::UTF8)
+            $candidate = $candidate.Trim([char]0xFEFF).Trim()
+            if ($candidate -match '^https?://') { $ollamaUrl = $candidate }
+        } catch {}
+    }
+    [IO.File]::WriteAllText($ollamaFile, $ollamaUrl, $utf8NoBom)
+
+    $modelFile = Join-Path $Root 'PROMPT_AI_MODEL.txt'
+    $modelName = ''
+    if (Test-Path $modelFile) {
+        try {
+            $modelName = [IO.File]::ReadAllText($modelFile, [Text.Encoding]::UTF8)
+            $modelName = $modelName.Trim([char]0xFEFF).Trim()
+        } catch {}
+    }
+    [IO.File]::WriteAllText($modelFile, $modelName, $utf8NoBom)
+}
+
 try {
+    Repair-LocalSettings
+
     if (-not $SkipUpdate) {
         $localVersion = '0'
         $versionFile = Join-Path $Root 'VERSION.txt'
