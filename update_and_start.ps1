@@ -52,14 +52,34 @@ try {
             $remoteVersion = (Invoke-WebRequest -UseBasicParsing -Uri "$RepoRaw/VERSION.txt?ts=$([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())" -TimeoutSec 15).Content.Trim()
             Write-Host "Qwen Image 2.1 - installiert: $localVersion | GitHub: $remoteVersion"
 
-            if ($remoteVersion -and $remoteVersion -ne $localVersion) {
-                Write-Host "Update gefunden: $localVersion -> $remoteVersion"
+            $needsRepair = $false
+            $appFile = Join-Path $Root 'qwen_app.py'
+            if (-not (Test-Path $appFile)) {
+                $needsRepair = $true
+            } else {
+                try {
+                    $appCheck = [IO.File]::ReadAllText($appFile, [Text.Encoding]::UTF8)
+                    if ($appCheck -notmatch ('APP_VERSION = "' + [regex]::Escape($remoteVersion) + '"')) { $needsRepair = $true }
+                    if ($appCheck.Contains('Ã') -or $appCheck.Contains('Â')) { $needsRepair = $true }
+                    if ($appCheck -notmatch '_autoload_model_on_startup') { $needsRepair = $true }
+                    if ($appCheck -notmatch 'function makeQueueVideo' -or $appCheck -notmatch 'function makeQueueStill') { $needsRepair = $true }
+                } catch {
+                    $needsRepair = $true
+                }
+            }
+
+            if (($remoteVersion -and $remoteVersion -ne $localVersion) -or $needsRepair) {
+                if ($needsRepair -and $remoteVersion -eq $localVersion) {
+                    Write-Host "Installation unvollstaendig oder beschaedigt - repariere Version $remoteVersion ..."
+                } else {
+                    Write-Host "Update gefunden: $localVersion -> $remoteVersion"
+                }
                 $tempInstaller = Join-Path $env:TEMP ("Qwen_Image_2_1_update_" + [guid]::NewGuid().ToString('N') + '.ps1')
                 Invoke-WebRequest -UseBasicParsing -Uri "$RepoRaw/install.ps1?ts=$([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())" -OutFile $tempInstaller -TimeoutSec 60
                 & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $tempInstaller -Target $Root -NoStart -Silent
                 $code = $LASTEXITCODE
                 Remove-Item -Force $tempInstaller -ErrorAction SilentlyContinue
-                if ($code -ne 0) { Write-Warning 'Update fehlgeschlagen. Die vorhandene Version wird gestartet.' }
+                if ($code -ne 0) { Write-Warning 'Update/Reparatur fehlgeschlagen. Die vorhandene Version wird gestartet.' }
             }
         } catch {
             Write-Warning 'GitHub ist gerade nicht erreichbar. Die vorhandene Version wird gestartet.'
