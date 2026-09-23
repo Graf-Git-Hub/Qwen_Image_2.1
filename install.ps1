@@ -206,7 +206,7 @@ async def _autoload_model_on_startup():
     if ($appText -notmatch '_autoload_model_on_startup') {
         throw 'Modell-Autoload fehlt in qwen_app.py.'
     }
-    if ($appText.Contains('Ã') -or $appText.Contains('Â')) {
+    if ($appText.Contains([char]0x00C3) -or $appText.Contains([char]0x00C2)) {
         throw 'UTF-8-Pruefung fehlgeschlagen: Mojibake in qwen_app.py erkannt.'
     }
     [IO.File]::WriteAllText($appTemp, $appText, (New-Object Text.UTF8Encoding($false)))
