@@ -17,6 +17,7 @@ SRC = ROOT / "stable-diffusion.cpp"
 MODEL_DIR = ROOT / "models"
 OUTPUT_DIR = ROOT / "output"
 LOCK = threading.Lock()
+PREPARATION = {"state": "preparing", "message": "Engine und Modelle werden vorbereitet …", "cli": None, "paths": None}
 SIGMAS = "1.0,0.978453,0.95418,0.926626,0.89508,0.845148,0.704534,0.414568,0.0"
 FILES = {
     "diffusion": ("unsloth/Qwen-Image-2.1-Turbo-GGUF", "qwen-image-2.1-turbo-Q4_K_M.gguf"),
@@ -64,7 +65,24 @@ def models():
     return paths
 
 
+def prepare():
+    try:
+        PREPARATION["message"] = "Engine wird gebaut …"
+        cli = binary()
+        PREPARATION["message"] = "Modell-Dateien werden geladen (etwa 11 GB) …"
+        paths = models()
+        PREPARATION.update(state="ready", message="Bereit: Engine und alle Modell-Dateien sind vorhanden.", cli=cli, paths=paths)
+    except Exception as exc:
+        PREPARATION.update(state="error", message=f"Vorbereitung fehlgeschlagen: {exc}")
+
+
+def readiness():
+    return PREPARATION["message"], gr.update(interactive=PREPARATION["state"] == "ready")
+
+
 def generate(prompt, references, ratio_name, size_name, seed, progress=gr.Progress()):
+    if PREPARATION["state"] != "ready":
+        raise gr.Error(PREPARATION["message"])
     if not prompt or not prompt.strip():
         raise gr.Error("Bitte erst einen Prompt eingeben.")
     refs = references or []
@@ -73,10 +91,8 @@ def generate(prompt, references, ratio_name, size_name, seed, progress=gr.Progre
     if not LOCK.acquire(blocking=False):
         raise gr.Error("Ein Bild wird bereits erzeugt. Bitte warten.")
     try:
-        progress(0.05, desc="Engine vorbereiten (beim ersten Mal länger)")
-        cli = binary()
-        progress(0.15, desc="Modelle laden (beim ersten Mal rund 11 GB)")
-        paths = models()
+        cli = PREPARATION["cli"]
+        paths = PREPARATION["paths"]
         width, height = dimensions(ratio_name, size_name)
         OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
         name = f"qwen-{int(time.time())}.png"
@@ -113,7 +129,7 @@ def generate(prompt, references, ratio_name, size_name, seed, progress=gr.Progre
 
 
 with gr.Blocks(title="Paschy Qwen Image", theme=gr.themes.Soft()) as demo:
-    gr.Markdown("# 🎨 Qwen Image 2.1 Turbo\nBild erzeugen, verändern oder Referenzen kombinieren. Die erste Anfrage lädt die Modelle. **CPU Basic ist ein Versuch:** 16 GB RAM und 2 Kerne können an ihre Grenzen kommen.")
+    gr.Markdown("# 🎨 Qwen Image 2.1 Turbo\nBild erzeugen, verändern oder Referenzen kombinieren. Nach dem Start lädt der Space die Modelle automatisch. Warte auf **Bereit**. **CPU Basic ist ein Versuch:** 16 GB RAM und 2 Kerne können an ihre Grenzen kommen.")
     with gr.Row():
         with gr.Column():
             references = gr.File(label="Referenzbilder (0–5, in gewünschter Reihenfolge)", file_count="multiple", file_types=["image"], type="filepath")
@@ -121,12 +137,14 @@ with gr.Blocks(title="Paschy Qwen Image", theme=gr.themes.Soft()) as demo:
             ratio = gr.Radio(choices=list(RATIOS), value="⬜ Quadratisch 1:1", label="Format")
             size = gr.Radio(choices=list(SIZES), value="Schnelltest (512 px)", label="Auflösung (lange Kante)")
             seed = gr.Number(value=-1, precision=0, label="Seed (-1 = zufällig)")
-            button = gr.Button("✨ Bild erzeugen", variant="primary")
+            button = gr.Button("✨ Bild erzeugen", variant="primary", interactive=False)
         with gr.Column():
             result = gr.Image(label="Ergebnis", type="filepath", interactive=False)
             download = gr.File(label="Bild herunterladen")
             status = gr.Textbox(label="Status", interactive=False)
     gr.Markdown("**Hinweis:** Full HD und 4K sind keine direkten CPU-Presets. Erst prüfen wir, ob 512 px mit Referenzen überhaupt zuverlässig läuft. Der Space ist privat; gib die URL nicht als offenen Bilddienst weiter.")
     button.click(generate, inputs=[prompt, references, ratio, size, seed], outputs=[result, download, status], concurrency_limit=1)
+    demo.load(readiness, outputs=[status, button], every=5)
 
+threading.Thread(target=prepare, daemon=True).start()
 demo.queue(max_size=2).launch()
