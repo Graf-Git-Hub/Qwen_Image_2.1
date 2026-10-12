@@ -51,3 +51,7 @@ Siehe [`VERSION.txt`](./VERSION.txt).
 Der Modelldownload ist groß und kann lange dauern. Ein abgebrochener Hugging-Face-Download kann beim nächsten Installer-Lauf fortgesetzt werden.
 
 Die offizielle Qwen-Image-2.1-Nutzung basiert auf `QwenImage21Pipeline`, `transformers>=5.17`, aktuellem Diffusers, Accelerate und PyTorch.
+
+## Kompakte GPU-Variante (Qwen Image 2.1 Turbo GGUF)
+
+Für die RTX 3070 mit 8 GB VRAM gibt es zusätzlich [INSTALL_GPU.cmd](./INSTALL_GPU.cmd). Diese Variante hat die Oberfläche des CPU-Space, nutzt eine CUDA-Engine und speichert die GGUF-Modelle dauerhaft im lokalen Installationsordner. Sie läuft unabhängig von der oben beschriebenen großen Standalone-Version. Details: [local-gpu/README.md](./local-gpu/README.md). Die tatsächliche Bildgenerierung auf diesem Rechner ist noch nicht getestet.
