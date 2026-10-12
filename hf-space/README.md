@@ -14,3 +14,5 @@ suggested_hardware: cpu-basic
 Private CPU Basic experiment. On first generation, the app builds stable-diffusion.cpp and downloads only the selected model components. Models are kept in the Space's temporary cache; a restarted Space may download them again. Two vCPU and 16 GB RAM may be too slow or insufficient, especially for multiple references.
 
 Model: Unsloth Qwen Image 2.1 Turbo Q4_K_M; Qwen3-VL-8B-Instruct Q4_K_M and F16 vision projector; Qwen Image 2.1 VAE. Research license of the upstream model applies.
+
+Deployment: GitHub Actions uploads the contents of `hf-space/` to the existing private CPU Basic Space when `HF_TOKEN` is configured.
