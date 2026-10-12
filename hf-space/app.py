@@ -144,7 +144,9 @@ with gr.Blocks(title="Paschy Qwen Image", theme=gr.themes.Soft()) as demo:
             status = gr.Textbox(label="Status", interactive=False)
     gr.Markdown("**Hinweis:** Full HD und 4K sind keine direkten CPU-Presets. Erst prüfen wir, ob 512 px mit Referenzen überhaupt zuverlässig läuft. Der Space ist privat; gib die URL nicht als offenen Bilddienst weiter.")
     button.click(generate, inputs=[prompt, references, ratio, size, seed], outputs=[result, download, status], concurrency_limit=1)
-    demo.load(readiness, outputs=[status, button], every=5)
+    timer = gr.Timer(5)
+    demo.load(readiness, outputs=[status, button])
+    timer.tick(readiness, outputs=[status, button])
 
 threading.Thread(target=prepare, daemon=True).start()
 demo.queue(max_size=2).launch()
